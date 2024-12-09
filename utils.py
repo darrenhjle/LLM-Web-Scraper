@@ -1,20 +1,35 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 
 
 def scrape(url):
     driver_path = "./chromedriver.exe"
+
     options = webdriver.ChromeOptions()
+    options.add_argument("--disable-blink-features=AutomationControlled")  # Mimic human behavior
+    options.add_argument("--start-maximized")  # Ensures the full page loads
+    options.add_argument("--disable-extensions")  # Disable unnecessary browser extensions
+    options.add_argument("--no-sandbox")  # Fixes some permission issues
+
     driver = webdriver.Chrome(service=Service(driver_path), options=options)
 
     try: 
         driver.get(url)
+        # Wait until the DOM is fully loaded
+        WebDriverWait(driver, 20).until(
+            lambda driver: driver.execute_script("return document.readyState") == "complete"
+        )
+        
         html = driver.page_source
         
         return html
     finally:
         driver.quit()
+
 
 
 def parse(html):

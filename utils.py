@@ -4,9 +4,11 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
+from langchain_ollama import OllamaLLM
+from langchain_core.prompts import ChatPromptTemplate
 
 
-def scrape(url):
+def scrape(url, max_scroll=10):
     driver_path = "./chromedriver.exe"
 
     options = webdriver.ChromeOptions()
@@ -19,10 +21,13 @@ def scrape(url):
 
     try: 
         driver.get(url)
-        # Wait until the DOM is fully loaded
-        WebDriverWait(driver, 20).until(
-            lambda driver: driver.execute_script("return document.readyState") == "complete"
-        )
+        for _ in range(max_scroll):
+            # Scroll down the page incase website uses lazy loading
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            # Wait until the DOM is fully loaded
+            WebDriverWait(driver, 20).until(
+                lambda driver: driver.execute_script("return document.readyState") == "complete"
+            )
         
         html = driver.page_source
         
@@ -50,3 +55,25 @@ def split(content, max_length=8000):
     return batch
 
 
+model = OllamaLLM(model="llama3.1")
+
+template = (
+    "You are tasked with extracting specific information from the following text content: {content}. "
+    "Please follow these instructions carefully: \n\n"
+    "1. **Extract Information:** Only extract the information that directly matches the provided description: {user_prompt}. "
+    "2. **No Extra Content:** Do not include any additional text, comments, or explanations in your response. "
+    "3. **Empty Response:** If no information matches the description, return an empty string ('')."
+    "4. **Direct Data Only:** Your output should contain only the data that is explicitly requested, with no other text."
+)
+
+def llm_parse(chunks, user_prompt):
+    prompt = ChatPromptTemplate.from_template(template)
+    chain = prompt | model
+
+    res = []
+
+    for i, chunk in enumerate(chunks, start=0):
+        response = chain.invoke({"content": chunk, "user_prompt": user_prompt})
+        res.append(response)
+    
+    return "\n".join(res) 
